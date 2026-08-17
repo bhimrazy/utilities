@@ -146,18 +146,24 @@ jobs:
           path: dist-parts
       - name: Collect distributions
         run: |
-          shopt -s nullglob
           mkdir -p dist
           # flatten sequentially; identically named files can only come from parallel builds of the
-          #  same platform-independent dist, so keep the first and report the ones we drop
-          for file in dist-parts/*/*; do
+          #  same platform-independent dist, so keep the first and report the ones we drop.
+          # NOTE: `download-artifact` only gives each artifact its own sub-folder when the pattern
+          #  resolves to several of them, a lone artifact is extracted straight into the path,
+          #  so collect at any depth rather than assuming one of the two layouts
+          while IFS= read -r file; do
             name=$(basename "$file")
             if [ -e "dist/$name" ]; then
               echo "::notice::skipping duplicate $name from ${file%/*}"
             else
               mv "$file" "dist/$name"
             fi
-          done
+          done < <(find dist-parts -type f | sort)
+          if [ -z "$(ls -A dist)" ]; then
+            echo "::error::no distributions found in the downloaded artifacts"
+            exit 1
+          fi
       - name: Brief look
         run: |
           shopt -s nullglob
